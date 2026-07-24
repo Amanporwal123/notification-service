@@ -87,6 +87,47 @@ flowchart TD
 *   **Retry Strategy**: 3 retries, Exponential backoff, Dead Letter Queue (DLQ).
 *   **Reliability Features**: Idempotency keys, Request IDs, Correlation IDs, Database transactions, Health/Readiness checks.
 
+## Getting Started (Local Development)
+
+### Prerequisites
+*   Go 1.24+
+*   Docker & Docker Compose (for PostgreSQL and Kafka)
+
+### Setup Instructions
+
+1. **Clone the repository**
+2. **Ensure you have the configuration file**
+   Make sure you have a `config.yaml` in the root directory:
+   ```yaml
+   server:
+     port: 8080
+
+   database:
+     host: "localhost"
+     port: 5432
+     user: "postgres"
+     password: "password"
+     dbname: "notification_db"
+
+   kafka:
+     brokers:
+       - "localhost:9092"
+     topic: "notifications.events"
+   ```
+3. **Install Dependencies**
+   ```bash
+   go mod download
+   ```
+4. **Run the Server**
+   The HTTP server is configured with graceful shutdown and structured Zap logging.
+   ```bash
+   go run cmd/api/main.go
+   ```
+5. **Test the API**
+   ```bash
+   curl http://localhost:8080/ping
+   ```
+
 ## Suggested Folder Structure
 
 ```text
