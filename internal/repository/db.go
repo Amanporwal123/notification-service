@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Amanporwal123/notification-service/internal/config"
+	"github.com/Amanporwal123/notification-service/internal/model"
 	"github.com/Amanporwal123/notification-service/pkg/logger"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -22,6 +23,12 @@ func ConnectToDB(cfg config.DatabaseConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to db: %w", err)
 	}
+
+	// 3. AutoMigrate the Database Models
+	if err := DB.AutoMigrate(&model.Notification{}); err != nil {
+		return fmt.Errorf("failed to run database migrations: %w", err)
+	}
+	logger.Log.Info("Database migrations completed successfully")
 
 	logger.Log.Info("Successfully connected to PostgreSQL database!",
 		zap.String("host", cfg.Host),
