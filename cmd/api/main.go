@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Amanporwal123/notification-service/internal/config"
+	"github.com/Amanporwal123/notification-service/internal/repository"
 	"github.com/Amanporwal123/notification-service/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -30,6 +31,11 @@ func main() {
 		logger.Log.Fatal("failed to load config", zap.Error(err))
 	}
 	logger.Log.Info("Configuration loaded", zap.String("port", cfg.Server.Port))
+
+	// Initialize Database Connection
+	if err := repository.ConnectToDB(cfg.Database); err != nil {
+		logger.Log.Fatal("Database connection failed", zap.Error(err))
+	}
 
 	r := gin.Default()
 
