@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Amanporwal123/notification-service/internal/api"
 	"github.com/Amanporwal123/notification-service/internal/config"
 	"github.com/Amanporwal123/notification-service/internal/repository"
 	"github.com/Amanporwal123/notification-service/pkg/logger"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -37,13 +37,8 @@ func main() {
 		logger.Log.Fatal("Database connection failed", zap.Error(err))
 	}
 
-	r := gin.Default()
-
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
+	// Initialize Router and Dependencies
+	r := api.SetupRouter()
 
 	addr := ":" + cfg.Server.Port
 	srv := &http.Server{

@@ -3,6 +3,7 @@ package model
 import (
 	"time"
 
+	"github.com/Amanporwal123/notification-service/internal/constants"
 	"gorm.io/gorm"
 )
 
@@ -14,7 +15,7 @@ type Notification struct {
 	Type        string         `gorm:"type:varchar(20);not null;index" json:"type"` // e.g., EMAIL, SMS, PUSH
 	Recipient   string         `gorm:"type:varchar(255);not null;index" json:"recipient"`
 	Content     string         `gorm:"type:text;not null" json:"content"`
-	Status      string         `gorm:"type:varchar(20);not null;default:'PENDING';index" json:"status"`
+	Status      constants.NotificationStatus `gorm:"type:varchar(20);not null;default:'PENDING';index" json:"status"`
 	RetryCount  int            `gorm:"default:0" json:"retry_count"`
 	ProviderID  string         `gorm:"type:varchar(255)" json:"provider_id,omitempty"` // External ID from SendGrid/Twilio
 	
