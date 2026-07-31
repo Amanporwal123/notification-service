@@ -11,7 +11,10 @@ import (
 
 	"github.com/Amanporwal123/notification-service/internal/api"
 	"github.com/Amanporwal123/notification-service/internal/config"
+	"github.com/Amanporwal123/notification-service/internal/provider"
 	"github.com/Amanporwal123/notification-service/internal/repository"
+	"github.com/Amanporwal123/notification-service/internal/worker"
+	"github.com/Amanporwal123/notification-service/pkg/kafka"
 	"github.com/Amanporwal123/notification-service/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -37,8 +40,39 @@ func main() {
 		logger.Log.Fatal("Database connection failed", zap.Error(err))
 	}
 
+	// Initialize Kafka Producer
+	producer := kafka.NewProducer(cfg.Kafka.Brokers)
+	defer func() {
+		if err := producer.Close(); err != nil {
+			logger.Log.Error("Failed to close Kafka producer", zap.Error(err))
+		}
+	}()
+	logger.Log.Info("Kafka Producer initialized successfully", zap.Strings("brokers", cfg.Kafka.Brokers))
+
+	// Initialize Background Worker Dependencies
+	sendgridProvider := provider.NewSendGridProvider(cfg.Providers.SendGrid.ApiKey, cfg.Providers.SendGrid.FromEmail)
+	twilioProvider := provider.NewTwilioProvider(cfg.Providers.Twilio.AccountSID, cfg.Providers.Twilio.AuthToken, cfg.Providers.Twilio.FromNumber)
+
+	consumer := kafka.NewConsumer(cfg.Kafka.Brokers, cfg.Kafka.Topic, "notification_worker_group")
+	defer func() {
+		if err := consumer.Close(); err != nil {
+			logger.Log.Error("Failed to close Kafka consumer", zap.Error(err))
+		}
+	}()
+
+	processor := worker.NewProcessor(consumer, sendgridProvider, twilioProvider, repository.DB)
+	
+	// Create a context for the worker that we will cancel on shutdown
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	// NOTE: We don't defer workerCancel here because we need it in the main scope to manually cancel later.
+
+	go func() {
+		processor.Start(workerCtx)
+	}()
+	logger.Log.Info("Background Worker started successfully in a goroutine")
+
 	// Initialize Router and Dependencies
-	r := api.SetupRouter()
+	r := api.SetupRouter(producer, cfg.Kafka.Topic)
 
 	addr := ":" + cfg.Server.Port
 	srv := &http.Server{
@@ -57,7 +91,10 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	<-quit
-	logger.Log.Info("Shutting down server...")
+	logger.Log.Info("Shutting down server and worker...")
+
+	// Cancel the worker context to stop the background loop
+	workerCancel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

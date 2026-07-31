@@ -4,19 +4,20 @@ import (
 	"github.com/Amanporwal123/notification-service/internal/handler"
 	"github.com/Amanporwal123/notification-service/internal/repository"
 	"github.com/Amanporwal123/notification-service/internal/service"
+	"github.com/Amanporwal123/notification-service/pkg/kafka"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
 // SetupRouter initializes all services, handlers, and defines the HTTP routes.
 // This keeps main.go clean as the application grows.
-func SetupRouter() *gin.Engine {
+func SetupRouter(producer kafka.Producer, kafkaTopic string) *gin.Engine {
 	r := gin.Default()
 
 	// 1. Initialize Dependencies (Dependency Injection)
 	// As the app grows, you can move this into a dedicated "InitializeDependencies" function
 	notificationRepo := repository.NewNotificationRepository(repository.DB)
-	notificationSvc := service.NewNotificationService(notificationRepo)
+	notificationSvc := service.NewNotificationService(notificationRepo, producer, kafkaTopic)
 	notificationHandler := handler.NewNotificationHandler(notificationSvc)
 
 	// 2. Setup Health Check

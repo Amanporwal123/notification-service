@@ -12,3 +12,12 @@ kafka:
   brokers:
     - "localhost:9092"
   topic: "notifications.events"
+
+providers:
+  sendgrid:
+    api_key: "YOUR_SENDGRID_KEY"
+    from_email: "amanporwal34213@gmail.com"
+  twilio:
+    account_sid: "YOUR_TWILIO_SID"
+    auth_token: "YOUR_TWILIO_TOKEN"
+    from_number: "+17373611780"

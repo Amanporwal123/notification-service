@@ -1,4 +1,4 @@
-package worker
+package kafka
 
 import (
 	"context"
@@ -6,21 +6,32 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// consumer.go runs in the background listening to the Kafka queue.
-// It picks up pending notifications and actually executes the sending logic (e.g., via Email/SMS API).
+type Consumer interface {
+	ReadMessage(ctx context.Context) ([]byte, error)
+	Close() error
+}
+
+type consumer struct {
+	reader *kafka.Reader
+}
 
 func NewConsumer(brokers []string, topic string, groupID string) Consumer {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   topic,
-		GroupID: groupID, // <-- THIS IS MAGIC
+		GroupID: groupID,
 	})
 	return &consumer{reader: r}
 }
 
-// 2. The Listener
 func (c *consumer) ReadMessage(ctx context.Context) ([]byte, error) {
 	msg, err := c.reader.ReadMessage(ctx)
-	// ...
+	if err != nil {
+		return nil, err
+	}
 	return msg.Value, nil
+}
+
+func (c *consumer) Close() error {
+	return c.reader.Close()
 }

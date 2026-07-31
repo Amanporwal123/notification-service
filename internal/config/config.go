@@ -12,9 +12,10 @@ import (
 // Config holds all the configuration for our application
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Kafka    KafkaConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Kafka     KafkaConfig
+	Providers ProvidersConfig
 }
 
 type ServerConfig struct {
@@ -32,6 +33,22 @@ type DatabaseConfig struct {
 type KafkaConfig struct {
 	Brokers []string
 	Topic   string
+}
+
+type ProvidersConfig struct {
+	SendGrid SendGridConfig
+	Twilio   TwilioConfig
+}
+
+type SendGridConfig struct {
+	ApiKey    string `mapstructure:"api_key"`
+	FromEmail string `mapstructure:"from_email"`
+}
+
+type TwilioConfig struct {
+	AccountSID string `mapstructure:"account_sid"`
+	AuthToken  string `mapstructure:"auth_token"`
+	FromNumber string `mapstructure:"from_number"`
 }
 
 // Load the config from yaml file.
