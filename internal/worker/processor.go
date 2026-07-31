@@ -36,6 +36,20 @@ func (p *Processor) Start(ctx context.Context) {
 		// Read raw message
 		msgBytes, err := p.consumer.ReadMessage(ctx)
 		if err != nil {
+			// Graceful Shutdown Handling:
+			// 1. When the user presses CTRL+C (SIGINT) or the OS sends SIGTERM, the main.go file captures it.
+			// 2. main.go triggers `workerCancel()`, which immediately cancels the context (`ctx`) passed into this Start() function.
+			// 3. The `ReadMessage(ctx)` function inside kafka-go is listening to this context. When canceled, it instantly aborts 
+			//    its network wait and returns an error: "fetching message: context canceled".
+			// 4. We catch that error here. By checking `ctx.Err() != nil`, we confirm the error was caused by a deliberate shutdown, 
+			//    not a genuine Kafka network failure.
+			// 5. We MUST use `break` to exit this infinite for-loop. If we used `continue`, the loop would instantly restart, 
+			//    try to read from Kafka again (with a dead context), instantly fail, and loop again millions of times a second, 
+			//    causing severe log spam. Breaking the loop allows the `Start()` goroutine to exit cleanly.
+			if ctx.Err() != nil {
+				logger.Log.Info("Worker context canceled, stopping consumer loop cleanly")
+				break
+			}
 			logger.Log.Error("Failed to read message from Kafka", zap.Error(err))
 			continue
 		}
