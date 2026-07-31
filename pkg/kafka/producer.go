@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Amanporwal123/notification-service/pkg/logger"
 	"github.com/segmentio/kafka-go"
@@ -29,6 +30,9 @@ func NewProducer(brokers []string) Producer {
 		Addr:     kafka.TCP(brokers...),
 		// Balancer decides which partition to write to
 		Balancer: &kafka.LeastBytes{},
+		// By default, Kafka waits 1 second to "batch" multiple messages together before sending.
+		// We drop this to 10 milliseconds so the API responds instantly.
+		BatchTimeout: 10 * time.Millisecond,
 	}
 
 	return &producer{
