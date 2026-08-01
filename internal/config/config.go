@@ -31,8 +31,9 @@ type DatabaseConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers []string
-	Topic   string
+	Brokers    []string
+	Topic      string
+	MaxWorkers int `mapstructure:"max_workers"`
 }
 
 type ProvidersConfig struct {

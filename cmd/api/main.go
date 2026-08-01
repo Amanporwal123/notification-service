@@ -60,7 +60,7 @@ func main() {
 		}
 	}()
 
-	processor := worker.NewProcessor(consumer, sendgridProvider, twilioProvider, repository.DB)
+	processor := worker.NewProcessor(consumer, sendgridProvider, twilioProvider, repository.DB, cfg.Kafka.MaxWorkers)
 	
 	// Create a context for the worker that we will cancel on shutdown
 	workerCtx, workerCancel := context.WithCancel(context.Background())

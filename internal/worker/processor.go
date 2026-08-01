@@ -14,23 +14,32 @@ import (
 )
 
 type Processor struct {
-	consumer kafka.Consumer
-	email    provider.NotificationProvider
-	sms      provider.NotificationProvider
-	db       *gorm.DB
+	consumer   kafka.Consumer
+	email      provider.NotificationProvider
+	sms        provider.NotificationProvider
+	db         *gorm.DB
+	maxWorkers int
 }
 
-func NewProcessor(c kafka.Consumer, email provider.NotificationProvider, sms provider.NotificationProvider, db *gorm.DB) *Processor {
+func NewProcessor(c kafka.Consumer, email provider.NotificationProvider, sms provider.NotificationProvider, db *gorm.DB, maxWorkers int) *Processor {
+	// Fallback in case maxWorkers isn't configured
+	if maxWorkers <= 0 {
+		maxWorkers = 100 
+	}
 	return &Processor{
-		consumer: c,
-		email:    email,
-		sms:      sms,
-		db:       db,
+		consumer:   c,
+		email:      email,
+		sms:        sms,
+		db:         db,
+		maxWorkers: maxWorkers,
 	}
 }
 
 func (p *Processor) Start(ctx context.Context) {
-	logger.Log.Info("Starting Kafka Consumer Background Worker...")
+	logger.Log.Info("Starting Kafka Consumer Background Worker...", zap.Int("max_workers", p.maxWorkers))
+
+	// Create a worker pool semaphore
+	workerPoolLimit := make(chan struct{}, p.maxWorkers)
 
 	for {
 		// Read raw message
@@ -63,8 +72,15 @@ func (p *Processor) Start(ctx context.Context) {
 
 		logger.Log.Info("Processing notification", zap.Uint("id", notification.ID), zap.String("type", notification.Type))
 
+		// Acquire a token before spinning up the goroutine. 
+		// If 100 workers are busy, this line will block and wait for one to finish!
+		workerPoolLimit <- struct{}{}
+
 		// Process it in a new goroutine to allow massive concurrency!
 		go func(notif model.Notification) {
+			// Release token when done
+			defer func() { <-workerPoolLimit }()
+
 			var sendErr error
 			if notif.Type == "EMAIL" {
 				sendErr = p.email.SendEmail(ctx, notif.Recipient, notif.Content)
