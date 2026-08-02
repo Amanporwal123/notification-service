@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -99,12 +100,21 @@ func (p *Processor) Start(ctx context.Context) {
 			// Execute retry loop with exponential backoff
 			sendErr := retry.Do(
 				func() error {
+					var err error
 					if notif.Type == "EMAIL" {
-						return p.email.SendEmail(ctx, notif.Recipient, notif.Content)
+						err = p.email.SendEmail(ctx, notif.Recipient, notif.Content)
 					} else if notif.Type == "SMS" {
-						return p.sms.SendSMS(ctx, notif.Recipient, notif.Content)
+						err = p.sms.SendSMS(ctx, notif.Recipient, notif.Content)
+					} else {
+						return retry.Unrecoverable(fmt.Errorf("unknown notification type: %s", notif.Type))
 					}
-					return fmt.Errorf("unknown notification type: %s", notif.Type)
+					
+					// If it's a 401 Unauthorized or 400 Bad Request, retrying will NEVER fix it.
+					// We use retry.Unrecoverable to instantly break the loop and send it to the DLQ!
+					if err != nil && (strings.Contains(err.Error(), "status code: 401") || strings.Contains(err.Error(), "status code: 400")) {
+						return retry.Unrecoverable(err)
+					}
+					return err
 				},
 				retry.Attempts(p.maxRetries),
 				retry.Delay(time.Duration(p.initialBackoffMs)*time.Millisecond),
