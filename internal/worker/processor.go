@@ -3,6 +3,10 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/avast/retry-go/v4"
 
 	"github.com/Amanporwal123/notification-service/internal/constants"
 	"github.com/Amanporwal123/notification-service/internal/model"
@@ -14,29 +18,40 @@ import (
 )
 
 type Processor struct {
-	consumer   kafka.Consumer
-	email      provider.NotificationProvider
-	sms        provider.NotificationProvider
-	db         *gorm.DB
-	maxWorkers int
+	consumer         kafka.Consumer
+	email            provider.NotificationProvider
+	sms              provider.NotificationProvider
+	db               *gorm.DB
+	maxWorkers       int
+	maxRetries       uint
+	initialBackoffMs uint
 }
 
-func NewProcessor(c kafka.Consumer, email provider.NotificationProvider, sms provider.NotificationProvider, db *gorm.DB, maxWorkers int) *Processor {
-	// Fallback in case maxWorkers isn't configured
+func NewProcessor(c kafka.Consumer, email provider.NotificationProvider, sms provider.NotificationProvider, db *gorm.DB, maxWorkers int, maxRetries uint, initialBackoffMs uint) *Processor {
+	// Fallbacks
 	if maxWorkers <= 0 {
 		maxWorkers = 100 
 	}
+	if maxRetries <= 0 {
+		maxRetries = 3
+	}
+	if initialBackoffMs <= 0 {
+		initialBackoffMs = 2000
+	}
+	
 	return &Processor{
-		consumer:   c,
-		email:      email,
-		sms:        sms,
-		db:         db,
-		maxWorkers: maxWorkers,
+		consumer:         c,
+		email:            email,
+		sms:              sms,
+		db:               db,
+		maxWorkers:       maxWorkers,
+		maxRetries:       maxRetries,
+		initialBackoffMs: initialBackoffMs,
 	}
 }
 
 func (p *Processor) Start(ctx context.Context) {
-	logger.Log.Info("Starting Kafka Consumer Background Worker...", zap.Int("max_workers", p.maxWorkers))
+	logger.Log.Info("Starting Kafka Consumer Background Worker...", zap.Int("max_workers", p.maxWorkers), zap.Uint("max_retries", p.maxRetries))
 
 	// Create a worker pool semaphore
 	workerPoolLimit := make(chan struct{}, p.maxWorkers)
@@ -72,21 +87,30 @@ func (p *Processor) Start(ctx context.Context) {
 
 		logger.Log.Info("Processing notification", zap.Uint("id", notification.ID), zap.String("type", notification.Type))
 
-		// Acquire a token before spinning up the goroutine. 
-		// If 100 workers are busy, this line will block and wait for one to finish!
 		workerPoolLimit <- struct{}{}
 
-		// Process it in a new goroutine to allow massive concurrency!
 		go func(notif model.Notification) {
-			// Release token when done
 			defer func() { <-workerPoolLimit }()
 
-			var sendErr error
-			if notif.Type == "EMAIL" {
-				sendErr = p.email.SendEmail(ctx, notif.Recipient, notif.Content)
-			} else if notif.Type == "SMS" {
-				sendErr = p.sms.SendSMS(ctx, notif.Recipient, notif.Content)
-			} else {
+			// Execute retry loop with exponential backoff
+			sendErr := retry.Do(
+				func() error {
+					if notif.Type == "EMAIL" {
+						return p.email.SendEmail(ctx, notif.Recipient, notif.Content)
+					} else if notif.Type == "SMS" {
+						return p.sms.SendSMS(ctx, notif.Recipient, notif.Content)
+					}
+					return fmt.Errorf("unknown notification type: %s", notif.Type)
+				},
+				retry.Attempts(p.maxRetries),
+				retry.Delay(time.Duration(p.initialBackoffMs)*time.Millisecond),
+				retry.OnRetry(func(n uint, err error) {
+					logger.Log.Warn("Retrying notification", zap.Uint("attempt", n+1), zap.Uint("id", notif.ID), zap.Error(err))
+				}),
+				retry.Context(ctx), // Automatically aborts retries if the server is shutting down!
+			)
+
+			if notif.Type != "EMAIL" && notif.Type != "SMS" {
 				logger.Log.Warn("Unknown notification type, ignoring", zap.String("type", notif.Type))
 				return
 			}
@@ -94,7 +118,7 @@ func (p *Processor) Start(ctx context.Context) {
 			// Determine final status
 			newStatus := constants.StatusSent
 			if sendErr != nil {
-				logger.Log.Error("Failed to send notification via Provider", zap.Error(sendErr), zap.Uint("id", notif.ID))
+				logger.Log.Error("Failed to send notification via Provider after retries", zap.Error(sendErr), zap.Uint("id", notif.ID))
 				newStatus = constants.StatusFailed
 			}
 
