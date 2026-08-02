@@ -62,9 +62,11 @@ func main() {
 
 	processor := worker.NewProcessor(
 		consumer, 
+		producer,
 		sendgridProvider, 
 		twilioProvider, 
 		repository.DB, 
+		cfg.Kafka.DLQTopic,
 		cfg.Kafka.MaxWorkers,
 		cfg.Kafka.MaxRetries,
 		cfg.Kafka.InitialBackoffMs,

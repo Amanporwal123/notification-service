@@ -33,9 +33,10 @@ type DatabaseConfig struct {
 type KafkaConfig struct {
 	Brokers          []string
 	Topic            string
-	MaxWorkers       int `mapstructure:"max_workers"`
-	MaxRetries       uint `mapstructure:"max_retries"`
-	InitialBackoffMs uint `mapstructure:"initial_backoff_ms"`
+	DLQTopic         string `mapstructure:"dlq_topic"`
+	MaxWorkers       int    `mapstructure:"max_workers"`
+	MaxRetries       uint   `mapstructure:"max_retries"`
+	InitialBackoffMs uint   `mapstructure:"initial_backoff_ms"`
 }
 
 type ProvidersConfig struct {
