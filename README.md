@@ -3,8 +3,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.20+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![Kafka](https://img.shields.io/badge/Apache_Kafka-2.8+-231F20?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org/)
-[![Architecture: Clean](https://img.shields.io/badge/Architecture-Clean-brightgreen.style=for-the-badge)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Architecture: Clean](https://img.shields.io/badge/Architecture-Clean-brightgreen?style=for-the-badge)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 A highly scalable, production-grade event-driven notification microservice written in Go. This service is designed to handle massive throughput by decoupling HTTP API requests from the inherently slow process of delivering network notifications (Email/SMS). 
 
