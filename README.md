@@ -3,11 +3,23 @@
 [![Go Version](https://img.shields.io/badge/Go-1.20+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![Kafka](https://img.shields.io/badge/Apache_Kafka-2.8+-231F20?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org/)
+[![Architecture: Clean](https://img.shields.io/badge/Architecture-Clean-brightgreen.style=for-the-badge)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-A highly scalable, production-grade event-driven notification microservice written in Go. This service is designed to handle massive throughput by decoupling HTTP API requests from the slow process of delivering network notifications (Email/SMS). 
+A highly scalable, production-grade event-driven notification microservice written in Go. This service is designed to handle massive throughput by decoupling HTTP API requests from the inherently slow process of delivering network notifications (Email/SMS). 
 
-By utilizing **Apache Kafka** as a central message broker, this architecture guarantees sub-20ms API response times, zero data loss, and extreme resilience against third-party network outages.
+By utilizing **Apache Kafka** as a central message broker and implementing a highly concurrent worker pool, this architecture guarantees **sub-20ms API response times**, **zero data loss**, and **extreme resilience** against third-party network outages.
+
+---
+
+## ✨ Project Highlights for Engineering Leaders
+
+This project was built to demonstrate proficiency in enterprise backend engineering, focusing on reliability and scalability rather than just building a simple CRUD app.
+
+*   **High Throughput & Concurrency:** Leverages Go's powerful concurrency model with a strict Channel-based Semaphore worker pool to process thousands of events simultaneously without suffering from Out-Of-Memory (OOM) crashes.
+*   **Asynchronous Decoupling:** Replaces traditional blocking HTTP calls with a robust Kafka-driven event loop, allowing the API to scale independently of the notification providers.
+*   **Fault Tolerance:** Implements exponential backoff retry mechanisms to automatically recover from temporary network failures (e.g., SendGrid/Twilio API timeouts).
+*   **Zero Data Loss:** Architected with a Dead Letter Queue (DLQ). If a notification is truly unrecoverable (e.g., 401 Unauthorized), it is immediately safely isolated for DevOps auditing rather than silently dropping it.
 
 ---
 
@@ -35,16 +47,16 @@ graph LR
 
 This service implements several enterprise-grade architectural patterns to guarantee stability during peak traffic and network outages:
 
-| Pattern | Implementation Details | Benefit |
+| Pattern | Implementation Details | Engineering Benefit |
 | :--- | :--- | :--- |
 | **Worker Pool (Semaphore)** | The Kafka Consumer is bound by a strict Go Channel semaphore (`max_workers=1000`). | **OOM Protection:** Guarantees the server will never exceed memory limits during extreme traffic spikes. |
-| **Exponential Backoff** | Failed network requests trigger `avast/retry-go` logic, doubling the wait time between attempts. | **Network Resilience:** Survives temporary SendGrid/Twilio API outages without dropping emails. |
-| **Dead Letter Queue (DLQ)** | If an email exhausts all retries, it is automatically routed to `notifications.events.dlq`. | **Zero Data Loss:** Prevents poison-pills from blocking the queue while allowing DevOps to trigger PagerDuty alerts via Kafka Connect. |
+| **Exponential Backoff** | Failed network requests trigger `avast/retry-go` logic, doubling the wait time between attempts. | **Network Resilience:** Survives temporary third-party API outages without dropping a single email. |
+| **Dead Letter Queue (DLQ)** | If an email exhausts all retries, it is automatically routed to `notifications.events.dlq`. | **Observability:** Prevents poison-pills from blocking the queue while allowing DevOps to trigger PagerDuty alerts via Kafka Connect. |
 | **Graceful Shutdown** | Captures `SIGINT/SIGTERM` and injects a cancellation `context.Context` into the worker pool. | **Data Integrity:** Allows active workers to finish their in-flight network requests before the application safely shuts down. |
 
 ### 🔄 Advanced Message Flow: Retries & Dead Letter Queue
 
-The following sequence diagram illustrates exactly how the microservice handles catastrophic network failures using Exponential Backoff and the Dead Letter Queue:
+The following sequence diagram illustrates exactly how the microservice handles catastrophic network failures:
 
 ```mermaid
 sequenceDiagram
@@ -81,15 +93,41 @@ sequenceDiagram
 
 ---
 
+## 📂 Clean Architecture Layout
+
+The codebase strictly adheres to **Clean Architecture / Domain-Driven Design (DDD)** principles to ensure high maintainability and testability.
+
+```text
+├── cmd/
+│   └── api/main.go            # Application entrypoint & dependency injection
+├── internal/
+│   ├── api/router.go          # HTTP Routing (Gin)
+│   ├── config/config.go       # Environment & YAML Configuration
+│   ├── constants/             # Centralized application constants
+│   ├── handler/               # HTTP Handlers (Controllers)
+│   ├── model/                 # Domain Models & Database Schemas
+│   ├── provider/              # External Integrations (SendGrid, Twilio)
+│   ├── repository/            # Database Access Layer (GORM)
+│   ├── service/               # Core Business Logic
+│   └── worker/processor.go    # Background Kafka Consumer & Retry Logic
+├── pkg/
+│   ├── kafka/                 # Reusable Kafka Producer/Consumer abstractions
+│   └── logger/                # Structured JSON Logger (Zap)
+└── docker-compose.yml         # Local Infrastructure (PostgreSQL, Kafka, Zookeeper)
+```
+
+---
+
 ## 🛠 Tech Stack
 
 *   **Core Language:** Go (Golang)
 *   **Database ORM:** GORM
-*   **Database Engine:** PostgreSQL
+*   **Database Engine:** PostgreSQL 15
 *   **Event Broker:** Apache Kafka (with Zookeeper)
 *   **Web Framework:** Gin-Gonic
 *   **Configuration:** Viper (YAML)
 *   **Observability:** Uber Zap (Structured JSON Logging)
+*   **Resilience:** Avast Retry-Go
 
 ---
 
@@ -130,4 +168,4 @@ curl -X POST http://localhost:8080/api/v1/notifications \
 }'
 ```
 
-Watch the terminal closely to see the structured logging trace the event from the HTTP Router -> Kafka -> Worker Pool -> SendGrid -> Database!
+Watch the terminal closely to see the structured logging trace the event from the **HTTP Router** -> **Kafka** -> **Worker Pool** -> **SendGrid** -> **Database**!

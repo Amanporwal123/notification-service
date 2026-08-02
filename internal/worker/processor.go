@@ -101,6 +101,7 @@ func (p *Processor) Start(ctx context.Context) {
 			sendErr := retry.Do(
 				func() error {
 					var err error
+
 					if notif.Type == "EMAIL" {
 						err = p.email.SendEmail(ctx, notif.Recipient, notif.Content)
 					} else if notif.Type == "SMS" {
@@ -108,7 +109,7 @@ func (p *Processor) Start(ctx context.Context) {
 					} else {
 						return retry.Unrecoverable(fmt.Errorf("unknown notification type: %s", notif.Type))
 					}
-					
+
 					// If it's a 401 Unauthorized or 400 Bad Request, retrying will NEVER fix it.
 					// We use retry.Unrecoverable to instantly break the loop and send it to the DLQ!
 					if err != nil && (strings.Contains(err.Error(), "status code: 401") || strings.Contains(err.Error(), "status code: 400")) {
@@ -134,7 +135,7 @@ func (p *Processor) Start(ctx context.Context) {
 			if sendErr != nil {
 				logger.Log.Error("Failed to send notification via Provider after retries", zap.Error(sendErr), zap.Uint("id", notif.ID))
 				newStatus = constants.StatusFailed
-				
+
 				// Push to Dead Letter Queue (DLQ)
 				if p.dlqTopic != "" && p.producer != nil {
 					logger.Log.Info("Pushing failed notification to DLQ", zap.String("topic", p.dlqTopic), zap.Uint("id", notif.ID))

@@ -33,6 +33,8 @@ func NewProducer(brokers []string) Producer {
 		// By default, Kafka waits 1 second to "batch" multiple messages together before sending.
 		// We drop this to 10 milliseconds so the API responds instantly.
 		BatchTimeout: 10 * time.Millisecond,
+		// Explicitly tell the library to create the topic if it does not exist (like the DLQ topic)
+		AllowAutoTopicCreation: true,
 	}
 
 	return &producer{
